@@ -2,6 +2,7 @@ package pgxv5
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/callmemars1/go-uow"
 
@@ -41,9 +42,10 @@ func (u *pgUOW[TRepoRegistry]) MustRepoRegistry() TRepoRegistry {
 	return u.repoRegistry
 }
 
-func (u *pgUOW[TRepoRegistry]) Begin(ctx context.Context, options uow.TxOptions) error {
+func (u *pgUOW[TRepoRegistry]) Begin(ctx context.Context, options *sql.TxOptions) error {
+	pgxOptions := mapSQLTxOptionsToPgx(options)
 
-	tx, err := u.conn.BeginTx(ctx, mapTxOptions(options))
+	tx, err := u.conn.BeginTx(ctx, pgxOptions)
 	if err != nil {
 		return err
 	}
@@ -73,18 +75,26 @@ func (u *pgUOW[TRepoRegistry]) Rollback(ctx context.Context) error {
 	return u.tx.Rollback(ctx)
 }
 
-func mapTxOptions(options uow.TxOptions) pgx.TxOptions {
+func mapSQLTxOptionsToPgx(options *sql.TxOptions) pgx.TxOptions {
 	txOptions := pgx.TxOptions{}
 
-	switch options.IsolationLevel {
-	case uow.ReadUncommitted:
+	if options == nil {
+		return txOptions
+	}
+
+	// Map isolation levels from sql to pgx
+	switch options.Isolation {
+	case sql.LevelReadUncommitted:
 		txOptions.IsoLevel = pgx.ReadUncommitted
-	case uow.ReadCommitted:
+	case sql.LevelReadCommitted:
 		txOptions.IsoLevel = pgx.ReadCommitted
-	case uow.RepeatableRead:
+	case sql.LevelRepeatableRead:
 		txOptions.IsoLevel = pgx.RepeatableRead
-	case uow.Serializable:
+	case sql.LevelSerializable:
 		txOptions.IsoLevel = pgx.Serializable
+	default:
+		// Use default isolation level
+		txOptions.IsoLevel = pgx.ReadCommitted
 	}
 
 	if options.ReadOnly {

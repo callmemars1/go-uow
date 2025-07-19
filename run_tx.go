@@ -2,7 +2,7 @@ package uow
 
 import (
 	"context"
-	"errors"
+	"database/sql"
 )
 
 type TxActionWithResult[TRepoRegistry any, TReturn any] func(UOW[TRepoRegistry]) (*TReturn, error)
@@ -11,32 +11,30 @@ func RunTxWithResult[TRepoRegistry any, TReturn any](
 	ctx context.Context,
 	factory Factory[TRepoRegistry],
 	action TxActionWithResult[TRepoRegistry, TReturn],
-	options TxOptions,
-) (*TReturn, error) {
+	options *sql.TxOptions,
+) (res *TReturn, err error) {
 	uow, err := factory.NewUOW(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := uow.Begin(ctx, options); err != nil {
-		return nil, FailedToStartTransaction(err)
-	}
-
-	result, err := action(uow)
-
-	if err != nil {
-		if rollbackErr := uow.Rollback(ctx); rollbackErr != nil {
-			joinedError := errors.Join(err, rollbackErr)
-			return nil, FailedToRollback(joinedError)
-		}
+	if err = uow.Begin(ctx, options); err != nil {
 		return nil, err
 	}
 
-	if commitErr := uow.Commit(ctx); commitErr != nil {
-		return nil, FailedToCommit(commitErr)
-	}
+	defer func() {
+		if p := recover(); p != nil {
+			_ = uow.Rollback(ctx)
+			panic(p)
+		} else if err != nil {
+			_ = uow.Rollback(ctx)
+		} else {
+			err = uow.Commit(ctx)
+		}
+	}()
 
-	return result, nil
+	res, err = action(uow)
+	return
 }
 
 type TxAction[TRepoRegistry any] func(UOW[TRepoRegistry]) error
@@ -45,7 +43,7 @@ func RunTx[TRepoRegistry any](
 	ctx context.Context,
 	factory Factory[TRepoRegistry],
 	action TxAction[TRepoRegistry],
-	options TxOptions,
+	options *sql.TxOptions,
 ) error {
 	_, err := RunTxWithResult(ctx, factory, func(uow UOW[TRepoRegistry]) (*any, error) {
 		return nil, action(uow)

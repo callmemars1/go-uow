@@ -1,36 +1,24 @@
 package uow
 
-type IsolationLevel string
+import "database/sql"
 
-const (
-	ReadUncommitted IsolationLevel = "read uncommitted"
-	ReadCommitted   IsolationLevel = "read committed"
-	RepeatableRead  IsolationLevel = "repeatable read"
-	Serializable    IsolationLevel = "serializable"
-)
-
-type TxOptions struct {
-	IsolationLevel IsolationLevel
-	ReadOnly       bool
-}
-
-func DefaultTxOptions() TxOptions {
-	return TxOptions{
-		IsolationLevel: ReadCommitted,
-		ReadOnly:       false,
+func DefaultTxOptions() *sql.TxOptions {
+	return &sql.TxOptions{
+		Isolation: sql.LevelReadCommitted,
+		ReadOnly:  false,
 	}
 }
 
-func SerializableTxOptions() TxOptions {
-	return TxOptions{
-		IsolationLevel: Serializable,
-		ReadOnly:       false,
+func SerializableTxOptions() *sql.TxOptions {
+	return &sql.TxOptions{
+		Isolation: sql.LevelSerializable,
+		ReadOnly:  false,
 	}
 }
 
-func ReadOnlyTxOptions() TxOptions {
-	return TxOptions{
-		IsolationLevel: ReadCommitted,
-		ReadOnly:       true,
+func ReadOnlyTxOptions() *sql.TxOptions {
+	return &sql.TxOptions{
+		Isolation: sql.LevelReadCommitted,
+		ReadOnly:  true,
 	}
 }

@@ -2,11 +2,12 @@ package uow
 
 import (
 	"context"
+	"database/sql"
 )
 
 type UOW[TRepoRegistry any] interface {
 	MustRepoRegistry() TRepoRegistry
-	Begin(ctx context.Context, options TxOptions) error
+	Begin(ctx context.Context, options *sql.TxOptions) error
 	Commit(ctx context.Context) error
 	Rollback(ctx context.Context) error
 }
